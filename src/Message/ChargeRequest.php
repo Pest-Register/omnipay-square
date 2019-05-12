@@ -121,6 +121,14 @@ class ChargeRequest extends AbstractRequest
         return $this->setParameter('note', $value);
     }
 
+    public function setSource($value){
+        return $this->setParameter('source', $value);
+    }
+
+    public function getSource(){
+        return $this->getParameter('source');
+    }
+
     public function getData()
     {
         $data = [];
@@ -130,9 +138,29 @@ class ChargeRequest extends AbstractRequest
             'amount' => $this->getAmountInteger(),
             'currency' => $this->getCurrency()
         ];
-        $data['card_nonce'] = $this->getNonce();
-        $data['customer_id'] = $this->getCustomerReference();
-        $data['customer_card_id'] = $this->getCustomerCardId();
+
+
+        if ($this->getSource()) {
+            $data['card_nonce'] = $this->getSource();
+        } elseif ($this->getCardReference()) {
+            $data['customer_card_id'] = $this->getCardReference();
+            if ($this->getCustomerReference()) {
+                $data['customer_id'] = $this->getCustomerReference();
+            }
+        } elseif ($this->getNonce()) {
+            $data['card_nonce'] = $this->getToken();
+            if ($this->getCustomerReference()) {
+                $data['customer_id'] = $this->getCustomerReference();
+            }
+        } else {
+            $data['customer_id'] = $this->getCustomerReference();
+            // one of cardReference, token, or card is required
+//            $this->validate('source');
+        }
+
+//        $data['card_nonce'] = $this->getNonce();
+//        $data['customer_id'] = $this->getCustomerReference();
+//        $data['customer_card_id'] = $this->getCustomerCardId();
         $data['reference_id'] = $this->getReferenceId();
         $data['order_id'] = $this->getOrderId();
         $data['note'] = $this->getNote();
