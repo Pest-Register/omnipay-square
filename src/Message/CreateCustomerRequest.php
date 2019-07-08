@@ -60,6 +60,16 @@ class CreateCustomerRequest extends AbstractRequest
         return $this->setParameter('email', $value);
     }
 
+    public function getReferenceId()
+    {
+        return $this->getParameter('referenceId');
+    }
+
+    public function setReferenceId($value)
+    {
+        return $this->setParameter('referenceId', $value);
+    }
+
     public function getData()
     {
         $data = [];
@@ -68,6 +78,7 @@ class CreateCustomerRequest extends AbstractRequest
         $data['family_name'] = $this->getLastName();
         $data['company_name'] = $this->getCompanyName();
         $data['email_address'] = $this->getEmail();
+        $data['reference_id'] = $this->getReferenceId();
 
         return $data;
     }
@@ -96,7 +107,7 @@ class CreateCustomerRequest extends AbstractRequest
         } catch (\Exception $e) {
             $response = [
                 'status' => 'error',
-                'detail' => 'Exception when creating customer: ', $e->getMessage()
+                'detail' => 'Exception when creating customer: ' . $e->getMessage()
             ];
         }
 

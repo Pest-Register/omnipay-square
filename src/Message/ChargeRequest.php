@@ -210,7 +210,7 @@ class ChargeRequest extends AbstractRequest
         } catch (\Exception $e) {
             $response = [
                 'status' => 'error',
-                'detail' => 'Exception when creating transaction: ', $e->getMessage()
+                'detail' => 'Exception when creating transaction: ' . $e->getMessage()
             ];
         }
 
