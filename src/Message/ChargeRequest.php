@@ -10,6 +10,8 @@ use SquareConnect;
  */
 class ChargeRequest extends AbstractRequest
 {
+    protected $liveEndpoint = 'https://connect.squareup.com';
+    protected $testEndpoint = 'https://connect.squareupsandbox.com';
 
     public function getAccessToken()
     {
@@ -71,14 +73,15 @@ class ChargeRequest extends AbstractRequest
         return $this->setParameter('nonce', $value);
     }
 
-    public function getCustomerId()
+    public function setCustomerReference($value)
     {
-        return $this->getParameter('customerId');
+        return $this->setParameter('customerReference', $value);
     }
 
-    public function setCustomerId($value)
+
+    public function getCustomerReference()
     {
-        return $this->setParameter('customerId', $value);
+        return $this->getParameter('customerReference');
     }
 
     public function getCustomerCardId()
@@ -91,32 +94,73 @@ class ChargeRequest extends AbstractRequest
         return $this->setParameter('customerCardId', $value);
     }
 
+    public function getReferenceId()
+    {
+        return $this->getParameter('referenceId');
+    }
+
+    public function setReferenceId($value)
+    {
+        return $this->setParameter('referenceId', $value);
+    }
+
+    public function getOrderId()
+    {
+        return $this->getParameter('orderId');
+    }
+
+    public function setOrderId($value)
+    {
+        return $this->setParameter('orderId', $value);
+    }
+
+    public function getNote()
+    {
+        return $this->getParameter('note');
+    }
+
+    public function setNote($value)
+    {
+        return $this->setParameter('note', $value);
+    }
+
+    public function getEndpoint()
+    {
+        return $this->getTestMode() === true ? $this->testEndpoint : $this->liveEndpoint;
+    }
+
+    private function getApiInstance()
+    {
+        $api_config = new \SquareConnect\Configuration();
+        $api_config->setHost($this->getEndpoint());
+        $api_config->setAccessToken($this->getAccessToken());
+        $api_client = new \SquareConnect\ApiClient($api_config);
+
+        return new \SquareConnect\Api\PaymentsApi($api_client);
+    }
 
     public function getData()
     {
-        $data = [];
+        $amountMoney = new \SquareConnect\Model\Money();
+        $amountMoney->setAmount($this->getAmountInteger());
+        $amountMoney->setCurrency($this->getCurrency());
 
-        $data['idempotency_key'] = $this->getIdempotencyKey();
-        $data['amount_money'] = [
-            'amount' => $this->getAmountInteger(),
-            'currency' => $this->getCurrency()
-        ];
-        $data['card_nonce'] = $this->getNonce();
-        $data['customer_id'] = $this->getCustomerId();
-        $data['customer_card_id'] = $this->getCustomerCardId();
+        $data = new SquareConnect\Model\CreatePaymentRequest();
+        $data->setSourceId($this->getNonce() ?? $this->getCustomerCardId());
+        $data->setCustomerId($this->getCustomerReference());
+        $data->setIdempotencyKey($this->getIdempotencyKey());
+        $data->setAmountMoney($amountMoney);
+        $data->setLocationId($this->getLocationId());
 
         return $data;
     }
 
     public function sendData($data)
     {
-
-        SquareConnect\Configuration::getDefaultConfiguration()->setAccessToken($this->getAccessToken());
-
-        $api_instance = new SquareConnect\Api\TransactionsApi();
-
         try {
-            $result = $api_instance->charge($this->getLocationId(), $data);
+            $api_instance = $this->getApiInstance();
+
+            $result = $api_instance->createPayment($data);
 
             if ($error = $result->getErrors()) {
                 $response = [
@@ -127,14 +171,20 @@ class ChargeRequest extends AbstractRequest
             } else {
                 $response = [
                     'status' => 'success',
-                    'transactionId' => $result->getTransaction()->getId(),
-                    'referenceId' => $result->getTransaction()->getReferenceId()
+                    'transactionId' => $result->getPayment()->getId(),
+                    'referenceId' => $result->getPayment()->getReferenceId(),
+                    'created_at' => $result->getPayment()->getCreatedAt(),
+                    'orderId' => $result->getPayment()->getOrderId()
                 ];
             }
-            return $this->createResponse($response);
-        } catch (Exception $e) {
-            echo 'Exception when creating transaction: ', $e->getMessage(), PHP_EOL;
+        } catch (\Exception $e) {
+            $response = [
+                'status' => 'error',
+                'detail' => 'Exception when creating transaction: ' . $e->getMessage()
+            ];
         }
+
+        return $this->createResponse($response);
     }
 
     public function createResponse($response)

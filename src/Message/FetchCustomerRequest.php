@@ -3,12 +3,10 @@
 namespace Omnipay\Square\Message;
 
 use Omnipay\Common\Message\AbstractRequest;
+use Omnipay\Common\Message\ResponseInterface;
 use SquareConnect;
 
-/**
- * Square Create Credit Card Request
- */
-class CreateCardRequest extends AbstractRequest
+class FetchCustomerRequest extends AbstractRequest
 {
     protected $liveEndpoint = 'https://connect.squareup.com';
     protected $testEndpoint = 'https://connect.squareupsandbox.com';
@@ -33,26 +31,6 @@ class CreateCardRequest extends AbstractRequest
         return $this->getParameter('customerReference');
     }
 
-    public function getCard()
-    {
-        return $this->getParameter('card');
-    }
-
-    public function setCard($value)
-    {
-        return $this->setParameter('card', $value);
-    }
-
-    public function getCardholderName()
-    {
-        return $this->getParameter('cardholderName');
-    }
-
-    public function setCardholderName($value)
-    {
-        return $this->setParameter('cardholderName', $value);
-    }
-
     public function getEndpoint()
     {
         return $this->getTestMode() === true ? $this->testEndpoint : $this->liveEndpoint;
@@ -70,19 +48,19 @@ class CreateCardRequest extends AbstractRequest
 
     public function getData()
     {
-        $data = new SquareConnect\Model\CreateCustomerCardRequest();
-        $data->setCardNonce($this->getCard());
-        $data->setCardholderName($this->getCardholderName());
+        $data = [];
+
+        $data['customer_id'] = $this->getCustomerReference();
 
         return $data;
     }
 
     public function sendData($data)
     {
-        $api_instance = $this->getApiInstance();
-
         try {
-            $result = $api_instance->createCustomerCard($this->getCustomerReference(), $data);
+            $api_instance = $this->getApiInstance();
+
+            $result = $api_instance->retrieveCustomer($data['customer_id']);
 
             if ($error = $result->getErrors()) {
                 $response = [
@@ -93,14 +71,13 @@ class CreateCardRequest extends AbstractRequest
             } else {
                 $response = [
                     'status' => 'success',
-                    'card' => $result->getCard(),
-                    'customerId' => $this->getCustomerReference()
+                    'customer' => $result->getCustomer()
                 ];
             }
         } catch (\Exception $e) {
             $response = [
                 'status' => 'error',
-                'detail' => 'Exception when creating card: ' . $e->getMessage()
+                'detail' => 'Exception when retrieving customer: ' . $e->getMessage()
             ];
         }
 
@@ -109,6 +86,7 @@ class CreateCardRequest extends AbstractRequest
 
     public function createResponse($response)
     {
-        return $this->response = new CardResponse($this, $response);
+        return $this->response = new CustomerResponse($this, $response);
     }
+
 }

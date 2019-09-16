@@ -5,19 +5,14 @@ namespace Omnipay\Square\Message;
 use Omnipay\Common\Message\AbstractResponse;
 
 /**
- * Square Refund Response
+ * Square List Refunds Response
  */
-class RefundResponse extends AbstractResponse
+class ListRefundsResponse extends AbstractResponse
 {
 
     public function isSuccessful()
     {
-        return $this->data['status'] === 'APPROVED';
-    }
-
-    public function isPending()
-    {
-        return $this->data['status'] === 'PENDING';
+        return $this->data['status'] === 'success';
     }
 
     public function getMessage()
@@ -29,17 +24,6 @@ class RefundResponse extends AbstractResponse
         if (array_key_exists('error', $this->data) && strlen($this->data['error'])) {
             $message .= $this->data['error'];
         }
-
-        if (!empty($this->data['errors'])) {
-            foreach ($this->data['errors'] as $error) {
-                $message .= $error->detail . ' ';
-            }
-        }
-
-        if ($this->isPending()) {
-            return $message .= 'Refund pending';
-        }
-
         return $message;
     }
 }
