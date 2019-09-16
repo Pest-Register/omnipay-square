@@ -10,6 +10,9 @@ use SquareConnect;
  */
 class ChargeRequest extends AbstractRequest
 {
+    protected $liveEndpoint = 'https://connect.squareup.com';
+    protected $testEndpoint = 'https://connect.squareupsandbox.com';
+
     public function getAccessToken()
     {
         return $this->getParameter('accessToken');
@@ -121,6 +124,21 @@ class ChargeRequest extends AbstractRequest
         return $this->setParameter('note', $value);
     }
 
+    public function getEndpoint()
+    {
+        return $this->getTestMode() === true ? $this->testEndpoint : $this->liveEndpoint;
+    }
+
+    private function getApiInstance()
+    {
+        $api_config = new \SquareConnect\Configuration();
+        $api_config->setHost($this->getEndpoint());
+        $api_config->setAccessToken($this->getAccessToken());
+        $api_client = new \SquareConnect\ApiClient($api_config);
+
+        return new \SquareConnect\Api\PaymentsApi($api_client);
+    }
+
     public function setSource($value){
         return $this->setParameter('source', $value);
     }
@@ -131,53 +149,40 @@ class ChargeRequest extends AbstractRequest
 
     public function getData()
     {
-        $data = [];
+        $amountMoney = new \SquareConnect\Model\Money();
+        $amountMoney->setAmount($this->getAmountInteger());
+        $amountMoney->setCurrency($this->getCurrency());
 
-        $data['idempotency_key'] = $this->getIdempotencyKey();
-        $data['amount_money'] = [
-            'amount' => $this->getAmountInteger(),
-            'currency' => $this->getCurrency()
-        ];
-
+        $data = new SquareConnect\Model\CreatePaymentRequest();
 
         if ($this->getSource()) {
-            $data['card_nonce'] = $this->getSource();
+            $data->setSourceId($this->getSource());
         } elseif ($this->getCardReference()) {
-            $data['customer_card_id'] = $this->getCardReference();
+            $data->setSourceId($this->getCardReference());
             if ($this->getCustomerReference()) {
-                $data['customer_id'] = $this->getCustomerReference();
+                $data->setCustomerId($this->getCustomerReference());
             }
         } elseif ($this->getNonce()) {
-            $data['card_nonce'] = $this->getToken();
+            $data->setSourceId($this->getToken());
             if ($this->getCustomerReference()) {
-                $data['customer_id'] = $this->getCustomerReference();
+                $data->setCustomerId($this->getCustomerReference());
             }
         } else {
-            $data['customer_id'] = $this->getCustomerReference();
-            // one of cardReference, token, or card is required
-//            $this->validate('source');
+            $data->setCustomerId($this->getCustomerReference());
         }
-
-//        $data['card_nonce'] = $this->getNonce();
-//        $data['customer_id'] = $this->getCustomerReference();
-//        $data['customer_card_id'] = $this->getCustomerCardId();
-        $data['reference_id'] = $this->getReferenceId();
-        $data['order_id'] = $this->getOrderId();
-        $data['note'] = $this->getNote();
+        $data->setIdempotencyKey($this->getIdempotencyKey());
+        $data->setAmountMoney($amountMoney);
+        $data->setLocationId($this->getLocationId());
 
         return $data;
     }
 
     public function sendData($data)
     {
-        SquareConnect\Configuration::getDefaultConfiguration()->setAccessToken($this->getAccessToken());
-
-        $api_instance = new SquareConnect\Api\TransactionsApi();
-
-        $tenders = [];
-
         try {
-            $result = $api_instance->charge($this->getLocationId(), $data);
+            $api_instance = $this->getApiInstance();
+
+            $result = $api_instance->createPayment($data);
 
             if ($error = $result->getErrors()) {
                 $response = [
@@ -186,25 +191,12 @@ class ChargeRequest extends AbstractRequest
                     'detail' => $error['detail']
                 ];
             } else {
-                $lineItems = $result->getTransaction()->getTenders();
-                if (count($lineItems) > 0) {
-                    foreach ($lineItems as $key => $value) {
-                        $tender = [];
-                        $tender['id'] = $value->getId();
-                        $tender['quantity'] = 1;
-                        $tender['amount'] = $value->getAmountMoney()->getAmount() / 100;
-                        $tender['currency'] = $value->getAmountMoney()->getCurrency();
-                        $item['note'] = $value->getNote();
-                        $tenders[] = $tender;
-                    }
-                }
                 $response = [
                     'status' => 'success',
-                    'transactionId' => $result->getTransaction()->getId(),
-                    'referenceId' => $result->getTransaction()->getReferenceId(),
-                    'created_at' => $result->getTransaction()->getCreatedAt(),
-                    'orderId' => $result->getTransaction()->getOrderId(),
-                    'tenders' => $tenders
+                    'transactionId' => $result->getPayment()->getId(),
+                    'referenceId' => $result->getPayment()->getReferenceId(),
+                    'created_at' => $result->getPayment()->getCreatedAt(),
+                    'orderId' => $result->getPayment()->getOrderId()
                 ];
             }
         } catch (\Exception $e) {
